@@ -31,11 +31,33 @@ class LinkedIn {
       if (!await this.acceptFirst(log)) break;
     }
   }
+  async invitationSnapshot() {
+    await this.goto('/mynetwork/invitation-manager/');
+    const cards = this.page.locator(this.s.invitationCard).filter({ has: this.page.getByRole('button', { name: /^Accept(?: .*)?$/i }) });
+    const ids = await cards.evaluateAll(nodes => nodes.map(n => n.getAttribute('data-invitation-id') || n.getAttribute('componentkey')));
+    // Live inspection: componentkey is only a candidate; LazyColumn has no verified
+    // total count or complete pagination contract. No environment flag bypasses this.
+    return { ids, stableIdsVerified: false, complete: false };
+  }
   async acceptFirst(log) {
       if (!new URL(this.page.url()).pathname.startsWith('/mynetwork/invitation-manager')) throw new Error('NOT_INVITATIONS');
       const cards = this.page.locator(this.s.invitationCard);
       const card = cards.filter({ has: this.page.getByRole('button', { name: /^Accept(?: .*)?$/i }) }).first();
       if (!await card.count()) return false;
+      return this.acceptCard(card, log);
+  }
+  async acceptById(id) {
+      await this.guard();
+      const cards = this.page.locator(this.s.invitationCard);
+      const matches = [];
+      for (let i = 0; i < await cards.count(); i++) if (await cards.nth(i).getAttribute('data-invitation-id') === id) matches.push(i);
+      if (matches.length !== 1) throw new Error('INVITATION_ID_NOT_UNIQUE');
+      const card = cards.nth(matches[0]);
+      if (await card.getAttribute('data-invitation-id') !== id) throw new Error('INVITATION_CHANGED');
+      return this.acceptCard(card, () => {});
+  }
+  async acceptCard(card, log) {
+      if (!new URL(this.page.url()).pathname.startsWith('/mynetwork/invitation-manager')) throw new Error('NOT_INVITATIONS');
       const button = card.getByRole('button', { name: /^Accept(?: .*)?$/i });
       if (await button.count() !== 1) throw new Error('AMBIGUOUS_ACCEPT');
       if (await card.getByRole('button', { name: /^Ignore(?: .*)?$/i }).count() !== 1) throw new Error('NOT_CONFIRMED_INCOMING');

@@ -58,3 +58,17 @@ test('visible challenges block actions while hidden background frames do not', a
   await page.locator('#captcha-internal').evaluate(n => { n.style.display = 'block'; n.style.height = '100px'; });
   await assert.rejects(adapter.guard(), /CHALLENGE/);
 });
+
+test('exact-ID acceptance leaves the historical invitation untouched', async t => {
+  const browser = await chromium.launch({ headless: true });
+  t.after(() => browser.close());
+  const page = await browser.newPage();
+  await page.route('https://www.linkedin.com/**', route => route.fulfill({ contentType: 'text/html', body: `<main>
+  <div role="listitem" data-invitation-id="historical"><button onclick="this.parentElement.remove()">Accept</button><button>Ignore</button></div>
+  <div role="listitem" data-invitation-id="new"><button onclick="this.parentElement.remove()">Accept</button><button>Ignore</button></div></main>` }));
+  const adapter = new LinkedIn(page);
+  await adapter.goto('/mynetwork/invitation-manager/');
+  await adapter.acceptById('new');
+  assert.equal(await page.locator('[data-invitation-id="historical"]').count(), 1);
+  await assert.rejects(adapter.acceptById('new'), /INVITATION_ID_NOT_UNIQUE/);
+});

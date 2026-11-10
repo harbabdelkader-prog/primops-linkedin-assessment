@@ -15,6 +15,8 @@ class State {
     this.save();
   }
   getBaseline(id) { return this.data.baselines?.[hash(id)]; }
+  getInvitations() { return this.data.invitations; }
+  setInvitations(value) { this.data.invitations = value; this.save(); }
   setBaseline(id, value) {
     this.data.baselines ||= {};
     this.data.baselines[hash(id)] = value;

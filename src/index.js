@@ -5,6 +5,7 @@ const { chromium } = require('playwright');
 const { State } = require('./state');
 const { LinkedIn } = require('./linkedin');
 const { processConversation } = require('./processor');
+const { processInvitations } = require('./invitations');
 
 const local = path.resolve(__dirname, '../.local');
 function log(event, fields = {}) {
@@ -44,17 +45,16 @@ async function main() {
     if (process.env.LIVE_SELECTORS_VERIFIED !== '1') throw new Error('LIVE_SELECTORS_NOT_VERIFIED');
     const state = new State(path.join(local, 'state.json'));
     const activation = randomUUID();
-    log('monitoring_started', { intervalMs: interval, historicalMessages: 'baseline_only', invitationActions: 'disabled' });
-    console.log('Monitoring existing conversations. Replies are automated. Ctrl+C to stop.');
+    const messagesEnabled = !process.argv.includes('--invitations-only');
+    log('monitoring_started', { intervalMs: interval, historicalMessages: 'baseline_only', invitationActions: 'blocked_pending_verification', messagesEnabled });
+    console.log(messagesEnabled ? 'Monitoring existing conversations. Replies are automated. Ctrl+C to stop.' : 'Invitation observation only. Message monitoring disabled. Close browser to stop.');
     let failures = 0;
     while (!stopped) {
       try {
-        // Startup validation must never accept historical invitations. Acceptance stays
-        // paused until a trustworthy invitation age/identity policy is implemented.
-        await adapter.goto('/mynetwork/invitation-manager/');
-        log('invitations_observed', { pendingCards: await page.locator(adapter.s.invitationCard).filter({ has: page.getByRole('button', { name: /^Accept(?: .*)?$/i }) }).count(), actionsEnabled: false });
-        const ids = await adapter.conversations();
-        if (!ids.length) log('no_conversations_detected');
+        await processInvitations({ snapshot: await adapter.invitationSnapshot(), state, log,
+          accept: id => adapter.acceptById(id) });
+        const ids = messagesEnabled ? await adapter.conversations() : [];
+        if (messagesEnabled && !ids.length) log('no_conversations_detected');
         for (const id of ids) {
           if (stopped) break;
           try {
