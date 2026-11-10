@@ -1,0 +1,15 @@
+# Assessment submission
+
+Implemented a local CommonJS Playwright runner with persistent visible Chromium, manual authentication, incoming invitation acceptance, existing-thread reply processing, durable deduplication, conservative ambiguous-send recovery, structured privacy-safe metrics, and deterministic contextual responses.
+
+Run `npm.cmd ci`, `npx.cmd playwright install chromium`, `npm.cmd test`, then `npm.cmd run inspect`. Verify live selectors before enabling monitoring as described in README.md.
+
+Live validation on November 10, 2026: manual login completed; authenticated structural DOM inspected; exactly one approved incoming invitation accepted and confirmed by pending-count decrease from 2 to 1, with 385 ms detection-to-confirmation latency. One explicitly approved reply to a user-confirmed new incoming message was confirmed sent in the selected controlled conversation (887 ms send-to-confirmation, 19.21 seconds including approval wait). Reprocessing the same incoming message using reloaded durable state produced no second send; a separate check found exactly one matching outgoing reply and persisted sent status. No recipient read receipt is claimed.
+
+Continuous monitoring was started with the existing profile and verified selectors at 13:11 Beirut time, with an 8,000 ms delay between completed polling passes. A live pass completed, discovering eight loaded threads; supported conversations were baselined without sending, unsupported/ambiguous markup was skipped, and a subsequent poll began. Startup validation logged no acceptance or reply. Logs contain timestamps, counts, hashed identifiers and status only. Full-pass duration exceeds eight seconds because navigation is sequential. This is observed startup/continued polling, not a long-duration soak or network-recovery test.
+
+Safety policy: on every activation, each conversation's first observed latest message is marked seen; only subsequent incoming messages beyond a loaded known boundary can trigger replies. Existing sent/pending state is retained. Newly discovered conversations are also baselined, potentially skipping legitimate new arrivals. Historical/offline messages are never automatically answered at first observation. Automatic invitation acceptance is deliberately disabled in the continuous runner because trustworthy invitation age and complete pagination have not been established. The acceptance adapter is implemented and live-tested, but unattended new-only acceptance remains a submission limitation. Other limitations: loaded-thread coverage only, unknown sender markup blocks replies, deterministic replies with limited language templates, no live network-recovery validation.
+
+Source has not been pushed to GitHub. Browser profile, durable message state, selectors overrides and logs remain local and ignored.
+
+Validation commands: `npm.cmd test` (20 tests passing: original 19 plus activation-baseline regression), `npm.cmd audit --omit=dev` (zero vulnerabilities), `git diff --check` (no whitespace errors), and syntax checks for the runner and browser adapter.
