@@ -4,8 +4,8 @@ const { hash } = require('./state');
 // Unknown IDs observed without those guarantees are permanently quarantined.
 async function processInvitations({ snapshot, state, accept, log }) {
   const saved = state.getInvitations() || { initialized: false, records: {} };
-  const ids = snapshot.ids || [];
-  const validIds = ids.every(id => typeof id === 'string' && id.length > 0) && new Set(ids).size === ids.length;
+  const ids = Array.isArray(snapshot.ids) ? snapshot.ids : [];
+  const validIds = Array.isArray(snapshot.ids) && ids.every(id => typeof id === 'string' && id.length > 0) && new Set(ids).size === ids.length;
   const verified = snapshot.complete === true && snapshot.stableIdsVerified === true && validIds;
   if (!verified || !saved.initialized) {
     for (const id of ids.filter(id => typeof id === 'string' && id.length > 0)) {
@@ -16,6 +16,7 @@ async function processInvitations({ snapshot, state, accept, log }) {
     log(verified ? 'invitation_baseline_created' : 'invitation_acceptance_blocked', {
       visiblePending: ids.length, stableIdsVerified: snapshot.stableIdsVerified === true,
       completeCoverageVerified: snapshot.complete === true,
+      reason: !validIds ? 'missing_or_duplicate_ids' : snapshot.stableIdsVerified !== true ? 'identity_unverified' : snapshot.complete !== true ? 'coverage_unverified' : 'baseline_created',
     });
     return;
   }

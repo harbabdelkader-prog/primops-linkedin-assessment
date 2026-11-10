@@ -57,3 +57,53 @@ test('incomplete coverage or unstable IDs blocks all actions and quarantines obs
   await f.run(['missing'], { snapshot: { ids: [null], complete: true, stableIdsVerified: true } });
   assert.deepEqual(f.calls, []);
 });
+
+test('repeated polls preserve the original historical record', async t => {
+  const f = setup(t);
+  await f.run(['old']);
+  const original = { ...f.state.getInvitations().records[hash('old')] };
+  for (let i = 0; i < 4; i++) await f.run(['old']);
+  assert.deepEqual(f.calls, []);
+  assert.deepEqual(f.state.getInvitations().records[hash('old')], original);
+});
+
+test('delayed historical appearance is quarantined rather than inferred new', async t => {
+  const f = setup(t);
+  await f.run(['visible-old']);
+  await f.run([], { snapshot: { ids: [], stableIdsVerified: true, complete: false } });
+  await f.run(['delayed-old'], { snapshot: { ids: ['delayed-old'], stableIdsVerified: true, complete: false } });
+  await f.run(['visible-old', 'delayed-old'], { state: new State(f.file) });
+  assert.deepEqual(f.calls, []);
+  assert.equal(new State(f.file).getInvitations().records[hash('delayed-old')].status, 'historical');
+});
+
+test('separate virtualized pages never establish a complete baseline', async t => {
+  const f = setup(t);
+  for (const ids of [['page-one'], ['page-two'], ['page-one']]) {
+    await f.run(ids, { snapshot: { ids, stableIdsVerified: true, complete: false } });
+  }
+  const saved = new State(f.file).getInvitations();
+  assert.equal(saved.initialized, false);
+  assert.equal(Object.keys(saved.records).length, 2);
+  assert.deepEqual(f.calls, []);
+});
+
+test('duplicate identifiers block the entire pass, including otherwise unseen IDs', async t => {
+  const f = setup(t);
+  await f.run(['old']);
+  await f.run(['duplicate', 'duplicate', 'new']);
+  await f.run(['old', 'duplicate', 'new'], { state: new State(f.file) });
+  assert.deepEqual(f.calls, []);
+});
+
+test('missing identifiers block actions without discarding historical or pending state', async t => {
+  const f = setup(t);
+  await f.run(['old']);
+  const saved = f.state.getInvitations();
+  saved.records[hash('uncertain')] = { status: 'pending', at: 123 };
+  f.state.setInvitations(saved);
+  await f.run(['new', null]);
+  await f.run(['old', 'new', 'uncertain'], { state: new State(f.file) });
+  assert.deepEqual(f.calls, []);
+  assert.deepEqual(new State(f.file).getInvitations().records[hash('uncertain')], { status: 'pending', at: 123 });
+});

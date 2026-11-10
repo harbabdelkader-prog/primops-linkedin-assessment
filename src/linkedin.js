@@ -11,6 +11,7 @@ const defaults = {
   composer: '[contenteditable="true"][role="textbox"]',
   conversationEntry: 'main .msg-conversation-listitem__link',
 };
+const isInvitationUrn = value => typeof value === 'string' && /^urn:li:invitation:\d+$/.test(value);
 class LinkedIn {
   constructor(page, selectors = {}) { this.page = page; this.s = { ...defaults, ...selectors }; }
   async guard() {
@@ -35,9 +36,11 @@ class LinkedIn {
     await this.goto('/mynetwork/invitation-manager/');
     const cards = this.page.locator(this.s.invitationCard).filter({ has: this.page.getByRole('button', { name: /^Accept(?: .*)?$/i }) });
     const ids = await cards.evaluateAll(nodes => nodes.map(n => n.getAttribute('data-invitation-id') || n.getAttribute('componentkey')));
-    // Live inspection: componentkey is only a candidate; LazyColumn has no verified
-    // total count or complete pagination contract. No environment flag bypasses this.
-    return { ids, stableIdsVerified: false, complete: false };
+    // Numeric invitation URNs in componentkey survived refresh, navigation and a
+    // browser restart in live inspection. Other key shapes remain unverified.
+    // LazyColumn still has no verified total count or complete pagination contract.
+    // Stable identity alone cannot establish that a newly visible card just arrived.
+    return { ids, stableIdsVerified: ids.length > 0 && ids.every(isInvitationUrn) && new Set(ids).size === ids.length, complete: false };
   }
   async acceptFirst(log) {
       if (!new URL(this.page.url()).pathname.startsWith('/mynetwork/invitation-manager')) throw new Error('NOT_INVITATIONS');
@@ -50,10 +53,11 @@ class LinkedIn {
       await this.guard();
       const cards = this.page.locator(this.s.invitationCard);
       const matches = [];
-      for (let i = 0; i < await cards.count(); i++) if (await cards.nth(i).getAttribute('data-invitation-id') === id) matches.push(i);
+      const attribute = isInvitationUrn(id) ? 'componentkey' : 'data-invitation-id';
+      for (let i = 0; i < await cards.count(); i++) if (await cards.nth(i).getAttribute(attribute) === id) matches.push(i);
       if (matches.length !== 1) throw new Error('INVITATION_ID_NOT_UNIQUE');
       const card = cards.nth(matches[0]);
-      if (await card.getAttribute('data-invitation-id') !== id) throw new Error('INVITATION_CHANGED');
+      if (await card.getAttribute(attribute) !== id) throw new Error('INVITATION_CHANGED');
       return this.acceptCard(card, () => {});
   }
   // Explicitly approved, controlled tests only. A component key is not proof of

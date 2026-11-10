@@ -88,3 +88,24 @@ test('controlled candidate-key acceptance targets only the approved key and reje
   await page.locator('main').evaluate(n => n.append(n.firstElementChild.cloneNode(true)));
   await assert.rejects(adapter.acceptCandidateKey('historical'), /CANDIDATE_KEY_NOT_UNIQUE/);
 });
+
+test('canonical componentkey URNs establish identity but never complete coverage', async t => {
+  const browser = await chromium.launch({ headless: true });
+  t.after(() => browser.close());
+  const page = await browser.newPage();
+  await page.route('https://www.linkedin.com/**', route => route.fulfill({ contentType: 'text/html', body: `<main>
+  <div role="listitem" componentkey="urn:li:invitation:123"><button onclick="this.parentElement.remove()">Accept</button><button>Ignore</button></div>
+  <div role="listitem" componentkey="urn:li:invitation:124"><button onclick="this.parentElement.remove()">Accept</button><button>Ignore</button></div>
+  </main>` }));
+  const adapter = new LinkedIn(page);
+  const snapshot = await adapter.invitationSnapshot();
+  assert.deepEqual(snapshot, { ids: ['urn:li:invitation:123', 'urn:li:invitation:124'], stableIdsVerified: true, complete: false });
+  await adapter.acceptById('urn:li:invitation:124');
+  assert.equal(await page.locator('[componentkey="urn:li:invitation:123"]').count(), 1);
+  await page.locator('[role="listitem"]').evaluate(n => n.setAttribute('componentkey', 'unverified-render-key'));
+  // Keep the modified fixture in place to verify runtime identity classification.
+  adapter.goto = async () => {};
+  assert.equal((await adapter.invitationSnapshot()).stableIdsVerified, false);
+  await page.locator('[role="listitem"]').evaluate(n => n.removeAttribute('componentkey'));
+  assert.equal((await adapter.invitationSnapshot()).stableIdsVerified, false);
+});
