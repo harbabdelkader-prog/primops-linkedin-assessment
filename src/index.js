@@ -4,8 +4,7 @@ const { randomUUID } = require('node:crypto');
 const { chromium } = require('playwright');
 const { State } = require('./state');
 const { LinkedIn } = require('./linkedin');
-const { processConversation } = require('./processor');
-const { processInvitations } = require('./invitations');
+const { runCycle } = require('./cycle');
 
 const local = path.resolve(__dirname, '../.local');
 function log(event, fields = {}) {
@@ -51,26 +50,9 @@ async function main() {
     let failures = 0;
     while (!stopped) {
       try {
-        await processInvitations({ snapshot: await adapter.invitationSnapshot(), state, log,
-          accept: id => adapter.acceptById(id) });
-        const ids = messagesEnabled ? await adapter.conversations() : [];
-        if (messagesEnabled && !ids.length) log('no_conversations_detected');
-        for (const id of ids) {
-          if (stopped) break;
-          try {
-            await adapter.goto(id);
-            if (!await page.locator(adapter.s.event).count()) { log('unsupported_or_empty_thread'); continue; }
-            const observedAt = Date.now();
-            const events = await adapter.events();
-            if (events.some(e => !e.id || e.direction === 'unknown')) { log('unverified_message_markup'); continue; }
-            await processConversation({ id, events, state, observedAt, activation, send: (text, last) => adapter.send(text, last), log });
-          } catch (error) {
-            if (/AUTH_REQUIRED|CHALLENGE|RESTRICTION/.test(error.message)) throw error;
-            log('conversation_error', { type: error.name });
-          }
-        }
+        const result = await runCycle({ adapter, state, activation, log, messagesEnabled, shouldStop: () => stopped });
         failures = 0;
-        log('poll_completed', { conversationsDiscovered: ids.length, intervalMs: interval });
+        log('poll_completed', { ...result, intervalMs: interval });
       } catch (error) {
         // Error messages/stacks can contain selectors, URLs and message text: never log them.
         const blocked = /AUTH_REQUIRED|CHALLENGE|RESTRICTION/.test(error.message);

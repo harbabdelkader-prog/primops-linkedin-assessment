@@ -108,6 +108,11 @@ class LinkedIn {
     }
     return [...new Set(paths)];
   }
+  async readConversation(id) {
+    await this.goto(id);
+    if (!await this.page.locator(this.s.event).count()) return null;
+    return this.events();
+  }
   async events() {
     return this.page.locator(this.s.event).evaluateAll((nodes, s) => nodes.map(node => {
       const id = node.getAttribute(s.eventId) || node.querySelector('[' + s.eventId + ']')?.getAttribute(s.eventId);
