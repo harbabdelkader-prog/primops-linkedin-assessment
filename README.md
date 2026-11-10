@@ -51,15 +51,15 @@ One process per workspace is enforced by `.local/runner.lock`. After a hard cras
 
 `npm.cmd test` runs Node's test runner for batching, self-message exclusion, restart deduplication, ambiguous sends, state corruption and reply edge cases, plus real Chromium tests against synthetic local HTML fixtures for acceptance and delivery. These do not establish live LinkedIn compatibility.
 
-Public-source submission: inspect `git status` and staged diff before committing. `.gitignore` excludes profiles, secrets, logs and local state. No remote is configured or push performed by this implementation.
+Public-source submission: inspect `git status` and staged diff before committing. `.gitignore` excludes profiles, secrets, logs and local state. Submission repository: https://github.com/harbabdelkader-prog/primops-linkedin-assessment.
 
 ## Publishing after review
 
-Create an empty public GitHub repository named `primops-linkedin-assessment` (do not initialize a README or license there), then run from this workspace, replacing `YOUR_USERNAME`:
+For a fresh checkout without an `origin` remote, configure the submission repository and publish:
 
 ```powershell
-git remote add origin https://github.com/YOUR_USERNAME/primops-linkedin-assessment.git
+git remote add origin https://github.com/harbabdelkader-prog/primops-linkedin-assessment.git
 git push -u origin main
 ```
 
-Git Credential Manager can prompt for GitHub authentication. Never place credentials in the remote URL. Publishing is a separate user action; these instructions do not publish anything automatically.
+Git Credential Manager can prompt for GitHub authentication. Never place credentials in the remote URL. Run `git remote -v` first if `origin` may already be configured. Publishing requires an explicit push.
