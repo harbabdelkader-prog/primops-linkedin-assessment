@@ -72,3 +72,19 @@ test('exact-ID acceptance leaves the historical invitation untouched', async t =
   assert.equal(await page.locator('[data-invitation-id="historical"]').count(), 1);
   await assert.rejects(adapter.acceptById('new'), /INVITATION_ID_NOT_UNIQUE/);
 });
+
+test('controlled candidate-key acceptance targets only the approved key and rejects duplicates', async t => {
+  const browser = await chromium.launch({ headless: true });
+  t.after(() => browser.close());
+  const page = await browser.newPage();
+  await page.route('https://www.linkedin.com/**', route => route.fulfill({ contentType: 'text/html', body: `<main>
+  <div role="listitem" componentkey="historical"><button onclick="this.parentElement.remove()">Accept</button><button>Ignore</button></div>
+  <div role="listitem" componentkey="new:controlled"><button onclick="this.parentElement.remove()">Accept</button><button>Ignore</button></div></main>` }));
+  const adapter = new LinkedIn(page);
+  await adapter.goto('/mynetwork/invitation-manager/');
+  await adapter.acceptCandidateKey('new:controlled');
+  assert.equal(await page.locator('[componentkey="historical"]').count(), 1);
+  await assert.rejects(adapter.acceptCandidateKey('new:controlled'), /CANDIDATE_KEY_NOT_UNIQUE/);
+  await page.locator('main').evaluate(n => n.append(n.firstElementChild.cloneNode(true)));
+  await assert.rejects(adapter.acceptCandidateKey('historical'), /CANDIDATE_KEY_NOT_UNIQUE/);
+});

@@ -56,6 +56,16 @@ class LinkedIn {
       if (await card.getAttribute('data-invitation-id') !== id) throw new Error('INVITATION_CHANGED');
       return this.acceptCard(card, () => {});
   }
+  // Explicitly approved, controlled tests only. A component key is not proof of
+  // stable invitation identity or complete coverage for unattended processing.
+  async acceptCandidateKey(key) {
+      await this.guard();
+      if (typeof key !== 'string' || !key) throw new Error('INVALID_CANDIDATE_KEY');
+      const escaped = await this.page.evaluate(value => CSS.escape(value), key);
+      const card = this.page.locator(this.s.invitationCard).and(this.page.locator(`[componentkey=${escaped}]`));
+      if (await card.count() !== 1) throw new Error('CANDIDATE_KEY_NOT_UNIQUE');
+      return this.acceptCard(card, () => {});
+  }
   async acceptCard(card, log) {
       if (!new URL(this.page.url()).pathname.startsWith('/mynetwork/invitation-manager')) throw new Error('NOT_INVITATIONS');
       const button = card.getByRole('button', { name: /^Accept(?: .*)?$/i });
